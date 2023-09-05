@@ -125,6 +125,12 @@ class Product
         return $this->categories;
     }
 
+    public function setCategories(Collection $categories): self
+    {
+        $this->categories = $categories;
+
+        return $this;
+    }
     public function addCategory(Category $category): static
     {
         if (!$this->categories->contains($category)) {

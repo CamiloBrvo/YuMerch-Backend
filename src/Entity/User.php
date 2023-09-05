@@ -45,10 +45,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[Groups(["public"])]
     private ?string $last_name = null;
 
-    #[ORM\OneToMany(mappedBy: 'User', targetEntity: Cart::class)]
+    #[ORM\OneToMany(mappedBy: 'user', targetEntity: Cart::class)]
     #[Groups(["public"])]
     private Collection $carts;
-
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $deletedAt = null;
