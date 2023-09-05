@@ -15,17 +15,27 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
 class CartController extends AbstractController
 {
     #[Route("/api/carts", name:"listCarts", methods:"GET")]
-    public function getAllCarts(CartRepository $cartRepository, SerializerInterface $serializer): JsonResponse
+    public function getAllCarts(CartRepository $cartRepository, SerializerInterface $serializer, Request $request, TagAwareCacheInterface $cachePool): JsonResponse
     {
-        $cartsList = $cartRepository->findAll();
+        $page = $request->get('page', 1);
+        $limit = $request->get('limit', 50);
 
-        $jsonCartsList = $serializer->serialize($cartsList, 'json', ['groups' => 'public']);
+        $idCache = "getAllCarts-" . $page . "-" . $limit;
+
+        $jsonCartsList = $cachePool->get($idCache, function (ItemInterface $item) use ($cartRepository, $page, $limit, $serializer) {
+            $item->tag("cartsCache");
+            $cartList = $cartRepository->findAllWithPagination($page, $limit);
+            return $serializer->serialize($cartList, 'json', ['groups' => 'public']);
+        });
 
         return new JsonResponse($jsonCartsList, Response::HTTP_OK, [], true);
     }
@@ -44,21 +54,31 @@ class CartController extends AbstractController
     }
 
     #[Route("/api/cart/user/{id_user}", name:"detailCartsByUser", methods:"GET")]
-    public function getDetailCartByUser(int $id_user, CartRepository $cartRepository, SerializerInterface $serializer): JsonResponse
+    public function getDetailCartByUser(int $id_user, CartRepository $cartRepository, SerializerInterface $serializer, Request $request, TagAwareCacheInterface $cachePool): JsonResponse
     {
         $carts = $cartRepository->findBy(['user' => $id_user]);
+
+        $page = $request->get('page', 1);
+        $limit = $request->get('limit', 50);
 
         if (!$carts) {
             throw new NotFoundHttpException('No cart found for this user.');
         }
 
-        $jsonCarts = $serializer->serialize($carts, 'json', ['groups' => 'public']);
+        $idCache = "getDetailCartUser-" . $page . "-" . $limit;
+
+        $jsonCarts = $cachePool->get($idCache, function (ItemInterface $item) use ($cartRepository, $page, $limit, $serializer) {
+            $item->tag("cartCache");
+            $cartList = $cartRepository->findAllWithPagination($page, $limit);
+            return $serializer->serialize($cartList, 'json', ['groups' => 'public']);
+        });
 
         return new JsonResponse($jsonCarts, Response::HTTP_OK, [], true);
     }
 
     #[Route("/api/cart", name:"createCart", methods:"POST")]
-    public function createCart(Request $request, SerializerInterface $serializer, ValidatorInterface $validator, EntityManagerInterface $em, UrlGeneratorInterface $urlGenerator): JsonResponse
+    #[IsGranted('ROLE_ADMIN', message: "You don't have the permission")]
+    public function createCart(Request $request, SerializerInterface $serializer, ValidatorInterface $validator, EntityManagerInterface $em, UrlGeneratorInterface $urlGenerator, TagAwareCacheInterface $cache): JsonResponse
     {
         $cartData = json_decode($request->getContent(), true);
 
@@ -98,6 +118,8 @@ class CartController extends AbstractController
 
         $em->flush();
 
+        $cache->invalidateTags(["cartCache", "cartCache"]);
+
         $jsonCart = $serializer->serialize($cart, 'json', ['groups' => 'public']);
         $location = $urlGenerator->generate('detailCart', ['id' => $cart->getId()], UrlGeneratorInterface::ABSOLUTE_URL);
 
@@ -105,7 +127,8 @@ class CartController extends AbstractController
     }
 
     #[Route("/api/cart/{id}", name:"updateCart", methods:"PUT")]
-    public function updateCart(Request $request, SerializerInterface $serializer, ValidatorInterface $validator, Cart $cart, EntityManagerInterface $em): JsonResponse
+    #[IsGranted('ROLE_ADMIN', message: "You don't have the permission")]
+    public function updateCart(Request $request, SerializerInterface $serializer, ValidatorInterface $validator, Cart $cart, EntityManagerInterface $em, TagAwareCacheInterface $cache): JsonResponse
     {
         $cartData = json_decode($request->getContent(), true);
         $newQuantity = $cartData['quantity'];
@@ -135,13 +158,17 @@ class CartController extends AbstractController
 
         $em->flush();
 
+        $cache->invalidateTags(["cartCache", "cartCache"]);
+
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
 
     #[Route("/api/cart/{id}", name:"deleteCart", methods:"DELETE")]
-    public function deleteCart(Cart $cart, CartRepository $cartRepository, EntityManagerInterface $em): JsonResponse
+    #[IsGranted('ROLE_ADMIN', message: "You don't have the permission")]
+    public function deleteCart(Cart $cart, CartRepository $cartRepository, EntityManagerInterface $em, TagAwareCacheInterface $cache): JsonResponse
     {
+        $cache->invalidateTags(["cartCache", "cartCache"]);
         $cartRepository->remove($cart);
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);

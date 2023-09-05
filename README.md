@@ -38,7 +38,7 @@ php bin/console doctrine:database:drop --force
 ### Serveur
 Pour lancer le serveur :
 ```bash
-php bin/console server:start
+symfony serve
 ```
 
 ### JWT

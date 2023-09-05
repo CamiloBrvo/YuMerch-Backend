@@ -13,6 +13,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
@@ -20,10 +21,12 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 class CategoryController extends AbstractController
 {
     #[Route('/api/categories', name: 'listCategories', methods: "GET")]
-    public function getAllCategorys(CategoryRepository $categoryRepository, SerializerInterface $serializer): JsonResponse
+    public function getAllCategorys(CategoryRepository $categoryRepository, SerializerInterface $serializer, Request $request): JsonResponse
     {
-        $categoryList = $categoryRepository->findAll();
+        $page = $request->get('page', 1);
+        $limit = $request->get('limit', 50);
 
+        $categoryList = $categoryRepository->findAllWithPagination($page, $limit);
         $jsonCategoryList = $serializer->serialize($categoryList, 'json', ['groups' => 'public']);
 
         return new JsonResponse($jsonCategoryList, Response::HTTP_OK, [], true);
@@ -43,6 +46,7 @@ class CategoryController extends AbstractController
     }
 
     #[Route('/api/category', name: 'createCategory', methods: "POST")]
+    #[IsGranted('ROLE_ADMIN', message: "You don't have the permission")]
     public function createCategory(Request $request, SerializerInterface $serializer, ValidatorInterface $validator, EntityManagerInterface $em, UrlGeneratorInterface $urlGenerator): JsonResponse
     {
         $category = $serializer->deserialize($request->getContent(), Category::class, 'json');
@@ -69,6 +73,7 @@ class CategoryController extends AbstractController
     }
 
     #[Route('/api/category/{id}', name: 'updateCategory', methods: "PUT")]
+    #[IsGranted('ROLE_ADMIN', message: "You don't have the permission")]
     public function updateCategory(Request $request, SerializerInterface $serializer, ValidatorInterface $validator, Category $currentCategory, EntityManagerInterface $em): JsonResponse
     {
             // Check if user exist and if delete
@@ -97,6 +102,7 @@ class CategoryController extends AbstractController
     }
 
     #[Route('/api/category/{id}', name: 'deleteCategory', methods: "DELETE")]
+    #[IsGranted('ROLE_ADMIN', message: "You don't have the permission")]
     public function deleteCategory(Category $category, CategoryRepository $categoryRepository, EntityManagerInterface $em): JsonResponse
     {
         // Check if product is link to delete category

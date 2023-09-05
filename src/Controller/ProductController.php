@@ -16,18 +16,28 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
 class ProductController extends AbstractController
 {
     #[Route('api/products', name: 'listProducts', methods: "GET")]
-    public function getAllProducts(ProductRepository $productRepository, SerializerInterface $serializer): JsonResponse
+    public function getAllProducts(ProductRepository $productRepository, SerializerInterface $serializer, Request $request, TagAwareCacheInterface $cachePool): JsonResponse
     {
-        $productList = $productRepository->findAll();
+        $page = $request->get('page', 1);
+        $limit = $request->get('limit', 50);
 
-        $jsonProductList = $serializer->serialize($productList, 'json', ['groups' => 'public']);
+        $idCache = "getAllProducts-" . $page . "-" . $limit;
+
+        $jsonProductList = $cachePool->get($idCache, function (ItemInterface $item) use ($productRepository, $page, $limit, $serializer) {
+            $item->tag("productsCache");
+            $productList = $productRepository->findAllWithPagination($page, $limit);
+            return $serializer->serialize($productList, 'json', ['groups' => 'public']);
+        });
 
         return new JsonResponse($jsonProductList, Response::HTTP_OK, [], true);
     }
@@ -46,6 +56,7 @@ class ProductController extends AbstractController
     }
 
     #[Route('api/product', name: 'createProduct', methods: "POST")]
+    #[IsGranted('ROLE_ADMIN', message: "You don't have the permission")]
     public function createProduct(Request $request, SerializerInterface $serializer, ValidatorInterface $validator, EntityManagerInterface $em, UrlGeneratorInterface $urlGenerator, CategoryRepository $categoryRepository, StatusRepository $statusRepository): JsonResponse
     {
         $productData = json_decode($request->getContent(), true);
@@ -98,6 +109,7 @@ class ProductController extends AbstractController
     }
 
     #[Route('api/product/{id}', name: 'updateProduct', methods: "PUT")]
+    #[IsGranted('ROLE_ADMIN', message: "You don't have the permission")]
     public function updateProduct(Request $request, SerializerInterface $serializer, ValidatorInterface $validator, Product $currentProduct, EntityManagerInterface $em, CategoryRepository $categoryRepository, StatusRepository $statusRepository): JsonResponse
     {
         // Check if product exist and if delete
@@ -155,8 +167,10 @@ class ProductController extends AbstractController
     }
 
     #[Route('api/product/{id}', name: 'deleteProduct', methods: "DELETE")]
-    public function deleteProduct(Product $product, ProductRepository $productRepository): JsonResponse
+    #[IsGranted('ROLE_ADMIN', message: "You don't have the permission")]
+    public function deleteProduct(Product $product, ProductRepository $productRepository, TagAwareCacheInterface $cache): JsonResponse
     {
+        $cache->invalidateTags(["productsCache"]);
         $productRepository->remove($product);
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);

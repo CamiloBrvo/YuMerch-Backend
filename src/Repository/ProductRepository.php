@@ -26,10 +26,18 @@ class ProductRepository extends ServiceEntityRepository
 
     public function findAll()
     {
-        return $this->createQueryBuilder('u')
-            ->where('u.deletedAt IS NULL')
+        return $this->createQueryBuilder('p')
+            ->where('p.deletedAt IS NULL')
             ->getQuery()
             ->getResult();
+    }
+
+    public function findAllWithPagination($page, $limit) {
+        $qb = $this->createQueryBuilder('p')
+            ->where('p.deletedAt IS NULL')
+            ->setFirstResult(($page - 1) * $limit)
+            ->setMaxResults($limit);
+        return $qb->getQuery()->getResult();
     }
 
     /**

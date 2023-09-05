@@ -12,23 +12,35 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
 class UserController extends AbstractController
 {
     #[Route('/api/users', name: 'listUsers', methods: "GET")]
-    public function getAllUsers(UserRepository $userRepository, SerializerInterface $serializer): JsonResponse
+    #[IsGranted('ROLE_ADMIN', message: "You don't have the permission")]
+    public function getAllUsers(UserRepository $userRepository, SerializerInterface $serializer, Request $request, TagAwareCacheInterface $cachePool): JsonResponse
     {
-        $userList = $userRepository->findAll();
+        $page = $request->get('page', 1);
+        $limit = $request->get('limit', 50);
 
-        $jsonUserList = $serializer->serialize($userList, 'json', ['groups' => 'public']);
+        $idCache = "getAllUsers-" . $page . "-" . $limit;
+
+        $jsonUserList = $cachePool->get($idCache, function (ItemInterface $item) use ($userRepository, $page, $limit, $serializer) {
+            $item->tag("usersCache");
+            $userList = $userRepository->findAllWithPagination($page, $limit);
+            return $serializer->serialize($userList, 'json', ['groups' => 'public']);
+        });
 
         return new JsonResponse($jsonUserList, Response::HTTP_OK, [], true);
     }
 
     #[Route('/api/user/{id}', name: 'detailUser', methods: "GET")]
+    #[IsGranted('ROLE_ADMIN', message: "You don't have the permission")]
     public function getDetailUser(User $user, SerializerInterface $serializer): JsonResponse
     {
         // Check if user exist and if delete
@@ -42,7 +54,8 @@ class UserController extends AbstractController
     }
 
     #[Route('/api/user', name: 'createUser', methods: "POST")]
-    public function createUser(Request $request, SerializerInterface $serializer, ValidatorInterface $validator, EntityManagerInterface $em, UrlGeneratorInterface $urlGenerator): JsonResponse
+    #[IsGranted('ROLE_ADMIN', message: "You don't have the permission")]
+    public function createUser(Request $request, SerializerInterface $serializer, ValidatorInterface $validator, EntityManagerInterface $em, UrlGeneratorInterface $urlGenerator, TagAwareCacheInterface $cache): JsonResponse
     {
         $user = $serializer->deserialize($request->getContent(), User::class, 'json');
 
@@ -63,6 +76,8 @@ class UserController extends AbstractController
         $em->persist($user);
         $em->flush();
 
+        $cache->invalidateTags(["usersCache"]);
+
         $jsonUser = $serializer->serialize($user, 'json');
         $location = $urlGenerator->generate('detailUser', ['id' => $user->getId()], UrlGeneratorInterface::ABSOLUTE_URL);
 
@@ -70,7 +85,8 @@ class UserController extends AbstractController
     }
 
     #[Route('/api/user/{id}', name: 'updateUser', methods: "PUT")]
-    public function updateUser(Request $request, SerializerInterface $serializer, ValidatorInterface $validator, User $currentUser, EntityManagerInterface $em): JsonResponse
+    #[IsGranted('ROLE_ADMIN', message: "You don't have the permission")]
+    public function updateUser(Request $request, SerializerInterface $serializer, ValidatorInterface $validator, User $currentUser, EntityManagerInterface $em, TagAwareCacheInterface $cache): JsonResponse
     {
         // Check if user exist and if delete
         if ($currentUser->getDeletedAt() !== null) {
@@ -100,12 +116,16 @@ class UserController extends AbstractController
         $em->persist($updatedUser);
         $em->flush();
 
+        $cache->invalidateTags(["usersCache"]);
+
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
     #[Route('/api/user/{id}', name: 'deleteUser', methods: "DELETE")]
-    public function detleteUser(User $user, UserRepository $userRepository): JsonResponse
+    #[IsGranted('ROLE_ADMIN', message: "You don't have the permission")]
+    public function detleteUser(User $user, UserRepository $userRepository, TagAwareCacheInterface $cache): JsonResponse
     {
+        $cache->invalidateTags(["usersCache"]);
         $userRepository->remove($user);
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);

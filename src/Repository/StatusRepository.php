@@ -31,6 +31,13 @@ class StatusRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    public function findAllWithPagination($page, $limit) {
+        $qb = $this->createQueryBuilder('s')
+            ->where('s.deletedAt IS NULL')
+            ->setFirstResult(($page - 1) * $limit)
+            ->setMaxResults($limit);
+        return $qb->getQuery()->getResult();
+    }
     /**
      * @throws ORMException
      * @throws OptimisticLockException

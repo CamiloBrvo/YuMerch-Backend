@@ -31,6 +31,13 @@ class CartRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    public function findAllWithPagination($page, $limit) {
+        $qb = $this->createQueryBuilder('c')
+            ->where('c.deletedAt IS NULL')
+            ->setFirstResult(($page - 1) * $limit)
+            ->setMaxResults($limit);
+        return $qb->getQuery()->getResult();
+    }
     public function add(Cart $entity, bool $flush = true): void
     {
         $this->_em->persist($entity);

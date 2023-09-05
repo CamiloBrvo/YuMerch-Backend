@@ -14,6 +14,7 @@
         "doctrine/doctrine-migrations-bundle": "^3.2",
         "doctrine/orm": "^2.16",
         "lexik/jwt-authentication-bundle": "^2.18",
+        "nelmio/cors-bundle": "^2.3",
         "symfony/console": "6.3.*",
         "symfony/dotenv": "6.3.*",
         "symfony/flex": "^2",
@@ -27,6 +28,7 @@
     "require-dev": {
         "doctrine/doctrine-fixtures-bundle": "^3.4",
         "fzaninotto/faker": "^1.5",
+        "symfony/debug-bundle": "6.3.*",
         "symfony/maker-bundle": "^1.50",
         "symfony/web-profiler-bundle": "6.3.*"
     },
