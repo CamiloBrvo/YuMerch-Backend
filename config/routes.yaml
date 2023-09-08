@@ -9,3 +9,14 @@ kernel:
 
 api_login_check:
     path: /api/login_check
+    controller: App\Controller\AuthController::login
+
+app_auth_check_token:
+    path: '/auth/check_token'
+    controller: 'App\Controller\AuthController::checkToken'
+    methods: ['POST']
+
+app_auth_check_admin:
+    path: '/auth/check_admin'
+    controller: 'App\Controller\AuthController::checkAdmin'
+    methods: ['POST']
