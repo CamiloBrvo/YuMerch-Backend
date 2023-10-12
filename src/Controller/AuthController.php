@@ -30,24 +30,38 @@ class AuthController extends AbstractController
         $this->security = $security;
     }
 
-    public function login(Request $request, JWTTokenManagerInterface $jwtManager): JsonResponse
+    public function login(Request $request, CacheInterface $cache): JsonResponse
     {
-        // ... (votre logique d'authentification)
+        // Récupérer les informations d'identification depuis la demande JSON
+        $credentials = json_decode($request->getContent(), true);
+
+        // Votre logique d'authentification ici (vérification des identifiants, etc.)
+        // ...
 
         // Si l'authentification réussit, générer un jeton JWT
         $user = $this->security->getUser();
 
-        // Assurez-vous que $user est une instance de UserInterface
-        if (!$user instanceof UserInterface) {
-            throw new \Exception('L\'utilisateur n\'est pas valide');
-        }
+        // Récupérez les rôles de l'utilisateur
+        $roles = $user->getRoles();
 
-        // Générer le token JWT
-        $token = $jwtManager->create($user);
+        // Créez les données à inclure dans le token (y compris les rôles)
+        $tokenData = [
+            'username' => $user->getUsername(),
+            'roles' => $roles, // Ajoutez les rôles ici
+        ];
+
+        $token = $this->jwtTokenManager->create($tokenData);
+
+        // Enregistrez le token en cache
+        $cache->get('user_token_' . $user->getId(), function (ItemInterface $item) use ($token) {
+            $item->expiresAfter(3600); // Temps d'expiration du cache en secondes
+            $item->set($token);
+
+            return $token;
+        });
 
         return new JsonResponse(['token' => $token]);
     }
-
 
     public function checkToken(Request $request, CacheInterface $cache, AuthorizationCheckerInterface $authorizationChecker): Response
     {

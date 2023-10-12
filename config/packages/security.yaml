@@ -34,6 +34,16 @@ security:
     access_control:
         - { path: ^/api/login, roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: PUBLIC_ACCESS }
+
+        # Need Admin Role
+        - { path: '^/api/user', methods: [ POST, PUT, DELETE ], roles: ROLE_ADMIN }
+        - { path: '^/api/users', methods: [ GET ], roles: ROLE_ADMIN }
+        - { path: '^/api/user/{id}', methods: [ POST, PUT, DELETE ], roles: ROLE_ADMIN }
+        - { path: '^/api/product', methods: [POST, PUT, DELETE], roles: ROLE_ADMIN }
+        - { path: '^/api/product/{id}', methods: [POST, PUT, DELETE], roles: ROLE_ADMIN }
+        - { path: '^/api/status', methods: [POST, PUT, DELETE], roles: ROLE_ADMIN }
+        - { path: '^/api/status/{id}', methods: [POST, PUT, DELETE], roles: ROLE_ADMIN }
+
         #  - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
 
     role_hierarchy:
